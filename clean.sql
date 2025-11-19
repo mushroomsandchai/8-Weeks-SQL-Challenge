@@ -52,7 +52,10 @@ INSERT INTO stg_runner_orders
 SELECT
 	order_id,
 	runner_id,
-	pickup_time,
+	CASE
+		WHEN pickup_time NOT ILIKE 'null' THEN TO_TIMESTAMP(pickup_time, 'YYYY-MM-DD HH24-MI-SS')
+		ELSE NULL
+	END as pickup_time,
 	CASE
 		WHEN distance = 'null' THEN NULL
 		ELSE CAST(REGEXP_REPLACE(distance, '[a-zA-Z\s]+', '') AS FLOAT)
