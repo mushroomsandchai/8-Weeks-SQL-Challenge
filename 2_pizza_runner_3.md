@@ -1,5 +1,6 @@
-### What are the standard ingredients for each pizza?
+
 # C. Ingredient Optimisation
+### 1. What are the standard ingredients for each pizza?
 ```sql
 select
 	n.pizza_name as pizza_name,
