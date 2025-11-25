@@ -296,9 +296,71 @@ join
 
 ### 10. Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
 ```sql
-
+with joining as (
+  select
+      customer_id,
+      min(start_date) as joining_date
+  from
+      subscriptions
+  group by
+      customer_id
+),
+pro_joining as (
+  select
+  	customer_id,
+  	min(start_date) as pro_join
+  from
+  	subscriptions
+  where
+  	plan_id = 3 and
+  	extract(year from start_date) = 2020
+  group by
+  	customer_id
+),
+difference as (
+  select
+      j.customer_id,
+	case
+    	when (p.pro_join - j.joining_date) >= 0 and (p.pro_join - j.joining_date) <= 30 then '0 - 30'
+    	when (p.pro_join - j.joining_date) >= 31 and (p.pro_join - j.joining_date) <= 60 then '31 - 60'
+    	when (p.pro_join - j.joining_date) >= 61 and (p.pro_join - j.joining_date) <= 90 then '61 - 90'
+    	when (p.pro_join - j.joining_date) >= 91 and (p.pro_join - j.joining_date) <= 120 then '91 - 120'
+    	when (p.pro_join - j.joining_date) >= 121 and (p.pro_join - j.joining_date) <= 150 then '121 - 150'
+    	when (p.pro_join - j.joining_date) >= 151 and (p.pro_join - j.joining_date) <= 180 then '151 - 180'
+    	when (p.pro_join - j.joining_date) >= 181 and (p.pro_join - j.joining_date) <= 210 then '181 - 210'
+    	when (p.pro_join - j.joining_date) >= 211 and (p.pro_join - j.joining_date) <= 240 then '211 - 240'
+    	when (p.pro_join - j.joining_date) >= 241 and (p.pro_join - j.joining_date) <= 270 then '241 - 270'
+    	when (p.pro_join - j.joining_date) >= 271 and (p.pro_join - j.joining_date) <= 300 then '271 - 300'
+    	when (p.pro_join - j.joining_date) >= 301 and (p.pro_join - j.joining_date) <= 330 then '301 - 330'
+    	when (p.pro_join - j.joining_date) >= 331 and (p.pro_join - j.joining_date) <= 365 then '331 - 365'
+     end as interval
+  from
+      joining j
+  join
+      pro_joining p on
+      p.customer_id = j.customer_id
+)
+select
+     interval,
+     count(*) as cnt
+from
+	difference
+group by
+	interval
+order by
+	cnt desc
 ```
-
+| interval  | cnt |
+| --------- | --- |
+| 0 - 30    | 48  |
+| 61 - 90   | 30  |
+| 121 - 150 | 28  |
+| 91 - 120  | 24  |
+| 31 - 60   | 22  |
+| 151 - 180 | 22  |
+| 181 - 210 | 17  |
+| 241 - 270 | 3   |
+| 211 - 240 | 1   |
 
 
 ### 11. How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
