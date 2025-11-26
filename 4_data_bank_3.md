@@ -12,7 +12,7 @@ For this multi-part challenge question - you have been requested to generate the
 - customer balance at the end of each month
 - minimum, average and maximum values of the running balance for each customer
 
-#### Option 1: End-of-Month Balance
+### Option 1: End-of-Month Balance
 Allocate data based on what customers had on the last day of the previous month
 
 Example: If you had $500 on Jan 31st, you get 500 GB for February
@@ -76,7 +76,7 @@ order by
 | 3           | 4   | -729              |
 
 
-#### We could assume that dataset we are given only reflect transactions carried out through a debit card. Hence, there must be positive balance in the account for the bank to have authorised withdrawls in the first place.
+#### We could assume that dataset we are given only reflects transactions carried out through a debit card. Hence, there must be positive balance in the account for the bank to have authorised withdrawls in the first place.
 ```sql
 select
 	mth as month,
@@ -117,3 +117,189 @@ order by
 | 2     | 261508           |
 | 3     | 260971           |
 | 4     | 264857           |
+
+
+### Option 2: 30-Day Average
+
+Allocate data based on the average balance over the previous 30 days
+
+Example: If your average was $350 over 30 days, you get 350 GB next month
+
+#### We could assume that dataset we are given only reflect transactions carried out through a debit card. Hence, there must be positive balance in the account for the bank to have authorised withdrawls in the first place.
+
+```sql
+with recursive days as (
+  	select make_date(2020, 1, 1) as date
+  	union
+  	select date + 1 from days where date + 1 < make_date(2020, 5, 1)
+),
+joined as (
+  	select distinct c.customer_id, d.date
+  	from customer_transactions c cross join days d
+),
+rolling_average as (
+  	select
+  		j.customer_id,
+  		j.date,
+  		sum(coalesce(case c.txn_type
+                     	when 'deposit' then c.txn_amount
+                     	else -c.txn_amount
+                     end , 0))
+  		over(partition by j.customer_id order by j.date) as rolling_balance
+  	from joined j
+  	left join
+  		customer_transactions c on
+  		c.customer_id = j.customer_id and
+  		c.txn_date = j.date
+),
+above_query as (
+	select 
+  		customer_id, 
+  		extract(month from date) as month, 
+  		avg(rolling_balance) as avg_balance
+  	from rolling_average
+	group by 1, 2
+)
+select
+	month,
+    round(sum(avg_balance)) as required_space
+from
+	above_query
+group by
+	month
+```
+| month | required_space |
+| ----- | -------------- |
+| 1     | 94060          |
+| 2     | 65225          |
+| 3     | -92309         |
+| 4     | -229802        |
+
+#### If we assume that management decides to give out zero in storage space in negative balance months, then:
+```sql
+select
+	month,
+    round(sum(case 
+              	when avg_balance > 0 then avg_balance
+             	else 0
+              end)) as required_space
+from
+	above_query
+group by
+	month
+```
+| month | required_space |
+| ----- | -------------- |
+| 1     | 125218         |
+| 2     | 246002         |
+| 3     | 256519         |
+| 4     | 256925         |
+
+### Option 3: Real-Time
+Data allocation updates instantly with every transaction
+
+Example: Deposit $100? You immediately get 100 GB more
+
+#### We could assume that dataset we are given only reflects transactions carried out through a debit card. Hence, there must be positive balance in the account for the bank to have authorised withdrawls in the first place.
+```sql
+with recursive days as (
+  	select make_date(2020, 1, 1) as date
+  	union
+  	select date + 1 from days where date + 1 < make_date(2020, 5, 1)
+),
+joined as (
+  	select distinct c.customer_id, d.date
+  	from customer_transactions c cross join days d
+),
+rolling_average as (
+  	select
+  		j.customer_id,
+  		j.date,
+  		sum(coalesce(case c.txn_type
+                     	when 'deposit' then c.txn_amount
+                     	else -c.txn_amount
+                     end , 0))
+  		over(partition by j.customer_id order by j.date) as rolling_balance
+  	from joined j
+  	left join
+  		customer_transactions c on
+  		c.customer_id = j.customer_id and
+  		c.txn_date = j.date
+),
+above_query as (
+	select 
+  		customer_id, 
+  		extract(month from date) as month, 
+  		sum(rolling_balance) as total_balance
+  	from rolling_average
+	group by 1, 2
+)
+select
+	month,
+    round(sum(total_balance)) as required_space
+from
+	above_query
+group by
+	month
+```
+| month | required_space |
+| ----- | -------------- |
+| 1     | 2925541        |
+| 2     | 1877545        |
+| 3     | -2918106       |
+| 4     | -6925951       |
+
+
+#### If we assume that management decides to give out zero in storage space in negative balance months, then:
+```sql
+with recursive days as (
+  	select make_date(2020, 1, 1) as date
+  	union
+  	select date + 1 from days where date + 1 < make_date(2020, 5, 1)
+),
+joined as (
+  	select distinct c.customer_id, d.date
+  	from customer_transactions c cross join days d
+),
+rolling_average as (
+  	select
+  		j.customer_id,
+  		j.date,
+  		sum(coalesce(case c.txn_type
+                     	when 'deposit' then c.txn_amount
+                     	else -c.txn_amount
+                     end , 0))
+  		over(partition by j.customer_id order by j.date) as rolling_balance
+  	from joined j
+  	left join
+  		customer_transactions c on
+  		c.customer_id = j.customer_id and
+  		c.txn_date = j.date
+),
+above_query as (
+	select 
+  		customer_id, 
+  		extract(month from date) as month, 
+  		sum(rolling_balance) as total_balance
+  	from rolling_average
+	group by 1, 2
+)
+select
+	month,
+    round(sum(case 
+              	when total_balance > 0 then total_balance
+             	else 0
+              end)) as required_space
+from
+	above_query
+group by
+	month
+```
+| month | required_space |
+| ----- | -------------- |
+| 1     | 3919581        |
+| 2     | 7180985        |
+| 3     | 8004209        |
+| 4     | 7750495        |
+
+###### Note: Option 1 and 2 need a month shift since the storage space gets allocated the following month.
