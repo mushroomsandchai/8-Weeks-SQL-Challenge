@@ -252,38 +252,6 @@ group by
 
 #### If we assume that management decides to give out zero in storage space in negative balance months, then:
 ```sql
-with recursive days as (
-  	select make_date(2020, 1, 1) as date
-  	union
-  	select date + 1 from days where date + 1 < make_date(2020, 5, 1)
-),
-joined as (
-  	select distinct c.customer_id, d.date
-  	from customer_transactions c cross join days d
-),
-rolling_average as (
-  	select
-  		j.customer_id,
-  		j.date,
-  		sum(coalesce(case c.txn_type
-                     	when 'deposit' then c.txn_amount
-                     	else -c.txn_amount
-                     end , 0))
-  		over(partition by j.customer_id order by j.date) as rolling_balance
-  	from joined j
-  	left join
-  		customer_transactions c on
-  		c.customer_id = j.customer_id and
-  		c.txn_date = j.date
-),
-above_query as (
-	select 
-  		customer_id, 
-  		extract(month from date) as month, 
-  		sum(rolling_balance) as total_balance
-  	from rolling_average
-	group by 1, 2
-)
 select
 	month,
     round(sum(case 
